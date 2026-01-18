@@ -32,6 +32,7 @@ enum bch_counters_flags {
 	x(data_update_no_io,				91,	TYPE_SECTORS)	\
 	x(data_update_in_flight,			90,	TYPE_COUNTER)	\
 	x(data_update_fail,				82,	TYPE_SECTORS)	\
+	x(data_update_copygc_wait,			128,	TYPE_SECTORS)	\
 	x(data_update_read,				35,	TYPE_SECTORS)	\
 	x(data_update_write,				36,	TYPE_SECTORS)	\
 	x(data_update_key,				37,	TYPE_SECTORS)	\

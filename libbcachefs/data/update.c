@@ -437,24 +437,7 @@ static inline bool should_trace_update_err(struct data_update *u, int ret)
 	return true;
 }
 
-static void data_update_trace(struct data_update *u, int ret)
-{
-	struct bch_fs *c = u->op.c;
-
-	if (!ret)
-		event_add_trace(c, data_update, u->k.k->k.size, buf,
-				bch2_data_update_to_text(&buf, u));
-	else if (bch2_err_matches(ret, BCH_ERR_data_update_done))
-		event_add_trace(c, data_update_no_io, u->k.k->k.size, buf, ({
-				bch2_data_update_to_text(&buf, u);
-				prt_printf(&buf, "\nret:\t%s\n", bch2_err_str(ret));
-		}));
-	else if (should_trace_update_err(u, ret))
-		event_add_trace(c, data_update_fail, u->k.k->k.size, buf, ({
-				bch2_data_update_to_text(&buf, u);
-				prt_printf(&buf, "\nret:\t%s\n", bch2_err_str(ret));
-		}));
-}
+static void data_update_trace(struct data_update *u, int ret);
 
 void bch2_data_update_exit(struct data_update *update, int ret)
 {
@@ -893,6 +876,36 @@ int bch2_can_do_data_update(struct btree_trans *trans,
 		prt_printf(trace, "need %u replicas\n", opts->data_replicas - durability_keeping);
 
 	return __bch2_can_do_write(c, opts, data_opts, &devs_have, k, trace);
+}
+
+static void data_update_trace(struct data_update *u, int ret)
+{
+	struct bch_fs *c = u->op.c;
+
+	if (!ret)
+		event_add_trace(c, data_update, u->k.k->k.size, buf,
+				bch2_data_update_to_text(&buf, u));
+	else if (bch2_err_matches(ret, BCH_ERR_data_update_done))
+		event_add_trace(c, data_update_no_io, u->k.k->k.size, buf, ({
+				bch2_data_update_to_text(&buf, u);
+				prt_printf(&buf, "\nret:\t%s\n", bch2_err_str(ret));
+		}));
+	else if (bch2_err_matches(ret, BCH_ERR_data_update_fail_need_copygc))
+		event_add_trace(c, data_update_copygc_wait, u->k.k->k.size, buf, ({
+			bch2_data_update_to_text(&buf, u);
+			prt_newline(&buf);
+			int ret2 = __bch2_can_do_write(u->op.c, &u->op.opts, &u->opts,
+				&u->op.devs_have, bkey_i_to_s_c(u->k.k), &buf);
+			if (!bch2_err_matches(ret2, BCH_ERR_data_update_fail_need_copygc)) {
+				prt_printf(&buf, "inconsistent can_do_write:\t%s\n", bch2_err_str(ret2));
+			}
+			BUG_ON(bch2_err_matches(ret2, BCH_ERR_transaction_restart));
+		}));
+	else if (should_trace_update_err(u, ret))
+		event_add_trace(c, data_update_fail, u->k.k->k.size, buf, ({
+				bch2_data_update_to_text(&buf, u);
+				prt_printf(&buf, "\nret:\t%s\n", bch2_err_str(ret));
+		}));
 }
 
 /*
